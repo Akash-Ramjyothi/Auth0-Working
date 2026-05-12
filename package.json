@@ -1,21 +1,52 @@
 {
   "name": "01-login",
   "version": "1.0.0",
-  "description": "Sample application for the new Auth0 SPA SDK",
+  "description": "Secure and production-ready Auth0 SPA SDK sample application built with Express.js",
   "main": "server.js",
-  "scripts": {
-    "start": "node bin/www",
-    "dev": "nodemon bin/www"
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
-  "keywords": [],
+  "scripts": {
+    "start": "node ./bin/www",
+    "dev": "nodemon ./bin/www",
+    "prod": "NODE_ENV=production node ./bin/www",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "check-format": "prettier --check ."
+  },
+  "keywords": [
+    "auth0",
+    "express",
+    "nodejs",
+    "authentication",
+    "spa",
+    "security",
+    "oauth",
+    "openid-connect"
+  ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/01-login.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/01-login/issues"
+  },
+  "homepage": "https://github.com/your-username/01-login#readme",
   "devDependencies": {
-    "nodemon": "^1.19.2"
+    "eslint": "^9.26.0",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.5.3"
   },
   "dependencies": {
-    "express": "^4.17.1",
-    "helmet": "^3.21.0",
-    "morgan": "^1.9.1"
+    "compression": "^1.8.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0"
   }
 }
