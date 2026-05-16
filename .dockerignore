@@ -1,3 +1,8 @@
-.git
+# Git metadata
+.git/
+
+# Git ignore rules
 .gitignore
+
+# Project documentation
 README.md
