@@ -1,15 +1,16 @@
-// The Auth0 client, initialized in configureClient()
+// Auth0 client instance
 let auth0 = null;
 
 /**
  * Starts the authentication flow
+ * @param {string} targetUrl - Optional route to redirect after login
  */
-const login = async (targetUrl) => {
+const login = async (targetUrl = "/") => {
   try {
-    console.log("Logging in", targetUrl);
+    console.log("[Auth] Starting login flow", { targetUrl });
 
     const options = {
-      redirect_uri: "https://moodwiz.netlify.app/"
+      redirect_uri: window.location.origin
     };
 
     if (targetUrl) {
@@ -17,112 +18,178 @@ const login = async (targetUrl) => {
     }
 
     await auth0.loginWithRedirect(options);
-  } catch (err) {
-    console.log("Log in failed", err);
+  } catch (error) {
+    console.error("[Auth] Login failed:", error);
   }
 };
 
 /**
  * Executes the logout flow
  */
-const logout = () => {
+const logout = async () => {
   try {
-    console.log("Logging out");
-    auth0.logout({
+    console.log("[Auth] Logging out");
+
+    await auth0.logout({
       returnTo: window.location.origin
     });
-  } catch (err) {
-    console.log("Log out failed", err);
+  } catch (error) {
+    console.error("[Auth] Logout failed:", error);
   }
 };
 
 /**
- * Retrieves the auth configuration from the server
+ * Fetches Auth0 configuration
+ * @returns {Promise<Object>}
  */
-const fetchAuthConfig = () => fetch("/auth_config.json");
+const fetchAuthConfig = async () => {
+  try {
+    const response = await fetch("/auth_config.json");
+
+    if (!response.ok) {
+      throw new Error(`Failed to load config: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("[Auth] Unable to fetch configuration:", error);
+    throw error;
+  }
+};
 
 /**
- * Initializes the Auth0 client
+ * Initializes the Auth0 SDK client
  */
 const configureClient = async () => {
-  const response = await fetchAuthConfig();
-  const config = await response.json();
+  try {
+    const config = await fetchAuthConfig();
 
-  auth0 = await createAuth0Client({
-    domain: config.domain,
-    client_id: config.clientId
-  });
+    auth0 = await createAuth0Client({
+      domain: config.domain,
+      client_id: config.clientId,
+      cacheLocation: "localstorage",
+      useRefreshTokens: true
+    });
+
+    console.log("[Auth] Auth0 client initialized");
+  } catch (error) {
+    console.error("[Auth] Client configuration failed:", error);
+  }
 };
 
 /**
- * Checks to see if the user is authenticated. If so, `fn` is executed. Otherwise, the user
- * is prompted to log in
- * @param {*} fn The function to execute if the user is logged in
+ * Checks authentication before executing a function
+ * @param {Function} fn
+ * @param {string} targetUrl
  */
 const requireAuth = async (fn, targetUrl) => {
-  const isAuthenticated = await auth0.isAuthenticated();
+  try {
+    const isAuthenticated = await auth0.isAuthenticated();
 
-  if (isAuthenticated) {
-    return fn();
+    if (isAuthenticated) {
+      return fn();
+    }
+
+    return login(targetUrl);
+  } catch (error) {
+    console.error("[Auth] Authentication check failed:", error);
   }
-
-  return login(targetUrl);
 };
 
-// Will run when page finishes loading
-window.onload = async () => {
-  await configureClient();
+/**
+ * Handles redirect callback after login
+ */
+const handleAuthRedirect = async () => {
+  const query = window.location.search;
 
-  // If unable to parse the history hash, default to the root URL
-  if (!showContentFromUrl(window.location.pathname)) {
-    showContentFromUrl("/");
-    window.history.replaceState({ url: "/" }, {}, "/");
-  }
+  const shouldParseResult =
+    query.includes("code=") && query.includes("state=");
 
-  const bodyElement = document.getElementsByTagName("body")[0];
-
-  // Listen out for clicks on any hyperlink that navigates to a #/ URL
-  bodyElement.addEventListener("click", (e) => {
-    if (isRouteLink(e.target)) {
-      const url = e.target.getAttribute("href");
-
-      if (showContentFromUrl(url)) {
-        e.preventDefault();
-        window.history.pushState({ url }, {}, url);
-      }
-    }
-  });
-
-  const isAuthenticated = await auth0.isAuthenticated();
-
-  if (isAuthenticated) {
-    console.log("> User is authenticated");
-    window.history.replaceState({}, document.title, window.location.pathname);
-    updateUI();
+  if (!shouldParseResult) {
     return;
   }
 
-  console.log("> User not authenticated");
+  try {
+    console.log("[Auth] Parsing redirect callback");
 
-  const query = window.location.search;
-  const shouldParseResult = query.includes("code=") && query.includes("state=");
+    const result = await auth0.handleRedirectCallback();
 
-  if (shouldParseResult) {
-    console.log("> Parsing redirect");
-    try {
-      const result = await auth0.handleRedirectCallback();
+    const targetUrl =
+      result?.appState?.targetUrl || window.location.pathname;
 
-      if (result.appState && result.appState.targetUrl) {
-        showContentFromUrl(result.appState.targetUrl);
-      }
+    showContentFromUrl(targetUrl);
 
-      console.log("Logged in!");
-    } catch (err) {
-      console.log("Error parsing redirect:", err);
+    window.history.replaceState({}, document.title, targetUrl);
+
+    console.log("[Auth] Login successful");
+  } catch (error) {
+    console.error("[Auth] Error handling redirect callback:", error);
+  }
+};
+
+/**
+ * Initializes client-side routing
+ */
+const initializeRouting = () => {
+  const bodyElement = document.body;
+
+  bodyElement.addEventListener("click", (event) => {
+    const target = event.target;
+
+    if (!isRouteLink(target)) {
+      return;
     }
 
-    window.history.replaceState({}, document.title, "/");
-  }
+    const url = target.getAttribute("href");
 
-  updateUI();
+    if (!url) {
+      return;
+    }
+
+    const isValidRoute = showContentFromUrl(url);
+
+    if (isValidRoute) {
+      event.preventDefault();
+
+      window.history.pushState({ url }, "", url);
+    }
+  });
+
+  window.addEventListener("popstate", () => {
+    showContentFromUrl(window.location.pathname);
+  });
 };
+
+/**
+ * Initializes the application
+ */
+const initializeApp = async () => {
+  try {
+    await configureClient();
+
+    initializeRouting();
+
+    // Default route fallback
+    if (!showContentFromUrl(window.location.pathname)) {
+      showContentFromUrl("/");
+      window.history.replaceState({ url: "/" }, "", "/");
+    }
+
+    await handleAuthRedirect();
+
+    const isAuthenticated = await auth0.isAuthenticated();
+
+    if (isAuthenticated) {
+      console.log("[Auth] User authenticated");
+    } else {
+      console.log("[Auth] User not authenticated");
+    }
+
+    updateUI();
+  } catch (error) {
+    console.error("[App] Initialization failed:", error);
+  }
+};
+
+// Initialize app after page load
+window.addEventListener("load", initializeApp);
