@@ -1,4 +1,32 @@
-const app = require('../server');
-const port = process.env.PORT || 3000;
+/**
+ * Application entry point
+ * Initializes and starts the HTTP server
+ */
 
-app.listen(port, () => console.log(`Server running on port ${port}`));
+const app = require('../server');
+
+const PORT = process.env.PORT || 3000;
+
+/**
+ * Start server
+ */
+app.listen(PORT, () => {
+  console.log('=================================');
+  console.log(`🚀 Server successfully started`);
+  console.log(`🌐 Running on port: ${PORT}`);
+  console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('=================================');
+});
+
+/**
+ * Handle unexpected application errors
+ */
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Unhandled Promise Rejection:', reason);
+  process.exit(1);
+});
